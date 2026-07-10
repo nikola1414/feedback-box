@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback Box</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        
+        <header class="main-header">
+            <div class="header-brand">
+                <div class="logo-icon">FB</div>
+                <div class="logo-text">
+                    <h1>Feedback Box</h1>
+                    <span>Interni Portal za Inovacije</span>
+                </div>
+            </div>
+            
+            <div class="header-user-actions" id="user-actions-container">
+            </div>
+        </header>
+
+        <div class="content-wrapper">
+            
+            <aside class="sidebar">
+                <div class="sidebar-card user-profile-card" id="sidebar-user-card">
+                </div>
+
+                <button class="btn btn-primary btn-block btn-lg" id="btn-otvori-novu-ideju">
+                    <span class="btn-icon">+</span> Predloži Novu Ideju
+                </button>
+
+                <div class="sidebar-card stats-card">
+                    <h3>Statistika Portala</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-value" id="stat-ukupno">0</span>
+                            <span class="stat-label">Ukupno Ideja</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value text-blue" id="stat-u-procesu">0</span>
+                            <span class="stat-label">U Procesu</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value text-green" id="stat-implementirano">0</span>
+                            <span class="stat-label">Implementirano</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value text-amber" id="stat-glasovi">0</span>
+                            <span class="stat-label">Ukupno Glasova</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-card categories-card">
+                    <h3>Kategorije</h3>
+                    <ul class="category-list" id="kategorije-lista">
+                        <li class="category-item active" data-kategorija="sve">
+                            <span>Sve kategorije</span>
+                            <span class="badge" id="kat-count-sve">0</span>
+                        </li>
+                        <li class="category-item" data-kategorija="Tehnologija">
+                            <span>Tehnologija</span>
+                            <span class="badge" id="kat-count-tehnologija">0</span>
+                        </li>
+                        <li class="category-item" data-kategorija="HR & Benefiti">
+                            <span>HR & Benefiti</span>
+                            <span class="badge" id="kat-count-hr">0</span>
+                        </li>
+                        <li class="category-item" data-kategorija="Radno okruženje">
+                            <span>Radno okruženje</span>
+                            <span class="badge" id="kat-count-okruzenje">0</span>
+                        </li>
+                        <li class="category-item" data-kategorija="Procesi & Organizacija">
+                            <span>Procesi & Organizacija</span>
+                            <span class="badge" id="kat-count-procesi">0</span>
+                        </li>
+                    </ul>
+                </div>
+            </aside>
+
+            <main class="main-content">
+                
+                <div class="controls-bar">
+                    <div class="search-box">
+                        <span class="search-icon">Search</span>
+                        <input type="text" id="input-pretraga" placeholder="Pretraži ideje po naslovu ili opisu...">
+                    </div>
+
+                    <div class="filter-controls">
+                        <div class="control-group">
+                            <label for="select-sort">Sortiraj:</label>
+                            <select id="select-sort" class="custom-select">
+                                <option value="najnovije">Najnovije</option>
+                                <option value="najpopularnije">Najpopularnije</option>
+                                <option value="najstarije">Najstarije</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group">
+                            <label for="select-status-filter">Status:</label>
+                            <select id="select-status-filter" class="custom-select">
+                                <option value="sve">Svi statusi</option>
+                                <option value="Čeka odobrenje">Čeka odobrenje</option>
+                                <option value="U procesu izrade">U procesu izrade</option>
+                                <option value="Implementirano">Implementirano</option>
+                                <option value="Odbijeno">Odbijeno</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="active-filter-info" id="filter-info-bar">
+                    Prikazuju se sve ideje
+                </div>
+
+                <div class="ideas-grid" id="ideje-kontejner">
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="modal-prijava">
+        <div class="modal-content">
+            <button class="modal-close" id="btn-zatvori-prijavu">&times;</button>
+            
+            <div class="modal-tabs">
+                <button class="tab-btn active" id="tab-prijava-btn">Prijava na portal</button>
+                <button class="tab-btn" id="tab-registracija-btn">Registracija</button>
+            </div>
+
+            <form id="forma-prijava" class="modal-form">
+                <div class="form-group">
+                    <label for="prijava-korisnicko">Korisničko ime:</label>
+                    <input type="text" id="prijava-korisnicko" required placeholder="Unesite korisničko ime">
+                </div>
+                <div class="form-group">
+                    <label for="prijava-lozinka">Lozinka:</label>
+                    <input type="password" id="prijava-lozinka" required placeholder="Unesite lozinku">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Prijavi se</button>
+                <div class="form-hint">
+                    <small>Demonstracioni nalozi: <br>
+                    • Admin: korisničko: <b>admin</b>, lozinka: <b>admin123</b><br>
+                    • Korisnik: korisničko: <b>petar</b>, lozinka: <b>user123</b></small>
+                </div>
+            </form>
+
+            <form id="forma-registracija" class="modal-form hidden">
+                <div class="form-group">
+                    <label for="reg-ime">Ime i Prezime:</label>
+                    <input type="text" id="reg-ime" required placeholder="npr. Marko Marković">
+                </div>
+                <div class="form-group">
+                    <label for="reg-korisnicko">Korisničko ime:</label>
+                    <input type="text" id="reg-korisnicko" required placeholder="Izaberite korisničko ime">
+                </div>
+                <div class="form-group">
+                    <label for="reg-lozinka">Lozinka:</label>
+                    <input type="password" id="reg-lozinka" required placeholder="Izaberite lozinku">
+                </div>
+                <div class="form-group">
+                    <label for="reg-uloga">Tip korisnika:</label>
+                    <select id="reg-uloga" class="custom-select">
+                        <option value="user">Zaposleni (Korisnik)</option>
+                        <option value="admin">Administrator</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Registruj se</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="modal-ideja">
+        <div class="modal-content modal-lg">
+            <button class="modal-close" id="btn-zatvori-ideju">&times;</button>
+            <h2 id="modal-ideja-naslov">Predloži novu ideju</h2>
+            
+            <form id="forma-ideja" class="modal-form">
+                <input type="hidden" id="ideja-id" value="">
+                
+                <div class="form-group">
+                    <label for="ideja-naslov-input">Naslov ideje:</label>
+                    <input type="text" id="ideja-naslov-input" required placeholder="Unesite kratak i jasan naslov ideje">
+                </div>
+                
+                <div class="form-group">
+                    <label for="ideja-kategorija">Kategorija:</label>
+                    <select id="ideja-kategorija" class="custom-select" required>
+                        <option value="Tehnologija">Tehnologija</option>
+                        <option value="HR & Benefiti">HR & Benefiti</option>
+                        <option value="Radno okruženje">Radno okruženje</option>
+                        <option value="Procesi & Organizacija">Procesi & Organizacija</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="ideja-opis">Detaljan opis ideje:</label>
+                    <textarea id="ideja-opis" rows="5" required placeholder="Opišite vašu ideju, zašto je korisna za kompaniju i kako je možemo sprovesti..."></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-otkani-ideju">Otkaži</button>
+                    <button type="submit" class="btn btn-primary">Sačuvaj ideju</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="modal-status">
+        <div class="modal-content">
+            <button class="modal-close" id="btn-zatvori-status">&times;</button>
+            <h2>Promena statusa projekta</h2>
+            <p class="modal-subtitle" id="status-modal-ideja-naslov"></p>
+
+            <form id="forma-status" class="modal-form">
+                <input type="hidden" id="status-ideja-id" value="">
+                
+                <div class="form-group">
+                    <label for="status-select">Izaberite novi status:</label>
+                    <select id="status-select" class="custom-select">
+                        <option value="Čeka odobrenje">Čeka odobrenje</option>
+                        <option value="U procesu izrade">U procesu izrade</option>
+                        <option value="Implementirano">Implementirano</option>
+                        <option value="Odbijeno">Odbijeno</option>
+                    </select>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-otkani-status">Otkaži</button>
+                    <button type="submit" class="btn btn-primary">Ažuriraj status</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-kontejner"></div>
+
+    <script src="js/storage.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ideas.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
