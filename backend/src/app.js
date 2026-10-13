@@ -3,13 +3,20 @@ import { authRoutes } from './routes/auth.js';
 import { ideaRoutes } from './routes/ideas.js';
 import { statsRoutes } from './routes/stats.js';
 import { HttpError } from './errors.js';
+import { FailedLoginLimiter } from './rateLimit.js';
 import { attachUser, createSessions } from './sessions.js';
 
 /**
  * Builds the Express application. Routes are async; errors are forwarded to the
  * error handler below (Express 4 does not do this on its own, hence wrapAsync).
  */
-export function createApp({ pool, staticDir, tokenTtlDays = 7, bcryptRounds = 10 }) {
+export function createApp({
+  pool,
+  staticDir,
+  tokenTtlDays = 7,
+  bcryptRounds = 10,
+  loginLimiter = new FailedLoginLimiter(),
+}) {
   const app = express();
   const sessions = createSessions(pool, tokenTtlDays);
 
@@ -18,7 +25,7 @@ export function createApp({ pool, staticDir, tokenTtlDays = 7, bcryptRounds = 10
 
   const api = express.Router();
   api.use(attachUser(sessions));
-  api.use('/auth', wrapRouter(authRoutes({ pool, sessions, bcryptRounds })));
+  api.use('/auth', wrapRouter(authRoutes({ pool, sessions, loginLimiter, bcryptRounds })));
   api.use('/ideas', wrapRouter(ideaRoutes({ pool })));
   api.use('/stats', wrapRouter(statsRoutes({ pool })));
   api.use((_req, _res, next) => next(new HttpError(404, 'Resurs nije pronađen.')));

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
+import { FailedLoginLimiter } from '../src/rateLimit.js';
 import { createAdmin, registerUser, resetDb, setupDb, startApp } from './helpers.js';
 
 describe('auth API', () => {
@@ -107,5 +108,34 @@ describe('auth API', () => {
     const bad = await api.raw('POST', '/auth/login', '{not json');
     assert.equal(bad.status, 400);
     assert.equal((await api.get('/nope')).status, 404);
+  });
+
+  it('locks sign-in after repeated failures and blocks only that username', async () => {
+    const limited = await startApp(pool, { loginLimiter: new FailedLoginLimiter({ max: 3 }) });
+    try {
+      await registerUser(limited, 'ana', 'Ana', 'user123');
+      for (let i = 0; i < 3; i++) {
+        assert.equal((await limited.post('/auth/login', { username: 'ana', password: 'bad' })).status, 401);
+      }
+      const blocked = await limited.post('/auth/login', { username: 'ana', password: 'user123' });
+      assert.equal(blocked.status, 429);
+      // A different username is not affected.
+      assert.equal((await limited.post('/auth/login', { username: 'other', password: 'x' })).status, 401);
+    } finally {
+      await limited.close();
+    }
+  });
+
+  it('clears the failure count after a successful login', async () => {
+    const limited = await startApp(pool, { loginLimiter: new FailedLoginLimiter({ max: 3 }) });
+    try {
+      await registerUser(limited, 'ana', 'Ana', 'user123');
+      for (let i = 0; i < 2; i++) await limited.post('/auth/login', { username: 'ana', password: 'bad' });
+      assert.equal((await limited.post('/auth/login', { username: 'ana', password: 'user123' })).status, 200);
+      for (let i = 0; i < 2; i++) await limited.post('/auth/login', { username: 'ana', password: 'bad' });
+      assert.equal((await limited.post('/auth/login', { username: 'ana', password: 'user123' })).status, 200);
+    } finally {
+      await limited.close();
+    }
   });
 });

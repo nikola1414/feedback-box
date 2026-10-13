@@ -10,3 +10,4 @@ export const unauthorized = (msg = 'Morate biti prijavljeni.') => new HttpError(
 export const forbidden = (msg) => new HttpError(403, msg);
 export const notFound = (msg) => new HttpError(404, msg);
 export const conflict = (msg) => new HttpError(409, msg);
+export const tooManyRequests = (msg) => new HttpError(429, msg);

@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { Router } from 'express';
-import { conflict, unauthorized } from '../errors.js';
+import { conflict, tooManyRequests, unauthorized } from '../errors.js';
 import { requireUser } from '../sessions.js';
 import { parseRegistration } from '../validate.js';
 
@@ -9,7 +9,7 @@ const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
 
 const publicUser = (u) => ({ id: Number(u.id), username: u.username, fullName: u.full_name ?? u.fullName, role: u.role });
 
-export function authRoutes({ pool, sessions, bcryptRounds = 10 }) {
+export function authRoutes({ pool, sessions, loginLimiter, bcryptRounds = 10 }) {
   const router = Router();
 
   router.post('/register', async (req, res) => {
@@ -34,13 +34,24 @@ export function authRoutes({ pool, sessions, bcryptRounds = 10 }) {
   router.post('/login', async (req, res) => {
     const username = String(req.body?.username ?? '').trim().toLowerCase();
     const password = String(req.body?.password ?? '');
+
+    const limitKey = `${req.ip}|${username}`;
+    if (loginLimiter.isBlocked(limitKey)) {
+      res.set('Retry-After', String(loginLimiter.retryAfterSeconds(limitKey)));
+      throw tooManyRequests('Previše neuspešnih pokušaja prijave. Pokušajte ponovo kasnije.');
+    }
+
     const { rows } = await pool.query(
       'SELECT id, username, password_hash, full_name, role FROM users WHERE username = $1',
       [username],
     );
     const user = rows[0];
     const ok = await bcrypt.compare(password, user?.password_hash ?? DUMMY_HASH);
-    if (!user || !ok) throw unauthorized('Netačno korisničko ime ili lozinka!');
+    if (!user || !ok) {
+      loginLimiter.recordFailure(limitKey);
+      throw unauthorized('Netačno korisničko ime ili lozinka!');
+    }
+    loginLimiter.reset(limitKey);
     const token = await sessions.create(user.id);
     res.json({ token, user: publicUser(user) });
   });

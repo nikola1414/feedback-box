@@ -14,11 +14,14 @@ export async function resetDb(pool) {
 }
 
 import { createApp } from '../src/app.js';
+import { FailedLoginLimiter } from '../src/rateLimit.js';
 
 /** Starts the app on an ephemeral port and returns a tiny JSON client. */
-export async function startApp(pool) {
+export async function startApp(pool, options = {}) {
   // Low bcrypt cost keeps the suite fast; production uses the default of 10.
-  const app = createApp({ pool, bcryptRounds: 4 });
+  // The default limiter is generous so unrelated tests never trip it.
+  const loginLimiter = new FailedLoginLimiter({ max: 1000 });
+  const app = createApp({ pool, bcryptRounds: 4, loginLimiter, ...options });
   const server = await new Promise((resolve) => {
     const s = app.listen(0, '127.0.0.1', () => resolve(s));
   });
