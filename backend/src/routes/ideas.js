@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { findIdeas } from '../ideaQueries.js';
 import { conflict, forbidden, notFound } from '../errors.js';
-import { requireUser } from '../sessions.js';
-import { parseComment, parseId, parseIdea, parseVote } from '../validate.js';
+import { requireAdmin, requireUser } from '../sessions.js';
+import { parseComment, parseId, parseIdea, parseStatus, parseVote } from '../validate.js';
 
 export function ideaRoutes({ pool }) {
   const router = Router();
@@ -55,6 +55,14 @@ export function ideaRoutes({ pool }) {
     if (!canModify(req.user, existing)) throw forbidden('Nemate pravo da obrišete ovu ideju!');
     await pool.query('DELETE FROM ideas WHERE id = $1', [existing.id]);
     res.status(204).end();
+  });
+
+  router.put('/:id/status', requireAdmin, async (req, res) => {
+    const existing = await loadIdea(parseId(req.params.id));
+    const status = parseStatus(req.body);
+    await pool.query('UPDATE ideas SET status = $1, updated_at = now() WHERE id = $2', [status, existing.id]);
+    const [idea] = await findIdeas(pool, { userId: req.user.id, id: existing.id });
+    res.json(idea);
   });
 
   /**

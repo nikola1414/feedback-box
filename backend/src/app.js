@@ -1,6 +1,7 @@
 import express from 'express';
 import { authRoutes } from './routes/auth.js';
 import { ideaRoutes } from './routes/ideas.js';
+import { statsRoutes } from './routes/stats.js';
 import { HttpError } from './errors.js';
 import { attachUser, createSessions } from './sessions.js';
 
@@ -19,6 +20,7 @@ export function createApp({ pool, staticDir, tokenTtlDays = 7, bcryptRounds = 10
   api.use(attachUser(sessions));
   api.use('/auth', wrapRouter(authRoutes({ pool, sessions, bcryptRounds })));
   api.use('/ideas', wrapRouter(ideaRoutes({ pool })));
+  api.use('/stats', wrapRouter(statsRoutes({ pool })));
   api.use((_req, _res, next) => next(new HttpError(404, 'Resurs nije pronađen.')));
   app.use('/api', api);
 
