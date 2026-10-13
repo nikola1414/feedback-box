@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { findIdeas } from '../ideaQueries.js';
 import { conflict, forbidden, notFound } from '../errors.js';
 import { requireUser } from '../sessions.js';
-import { parseId, parseIdea, parseVote } from '../validate.js';
+import { parseComment, parseId, parseIdea, parseVote } from '../validate.js';
 
 export function ideaRoutes({ pool }) {
   const router = Router();
@@ -80,6 +80,21 @@ export function ideaRoutes({ pool }) {
     }
     const [idea] = await findIdeas(pool, { userId: req.user.id, id: existing.id });
     res.json(idea);
+  });
+
+  router.post('/:id/comments', requireUser, async (req, res) => {
+    const existing = await loadIdea(parseId(req.params.id));
+    const text = parseComment(req.body);
+    const { rows } = await pool.query(
+      'INSERT INTO comments (idea_id, author_id, text) VALUES ($1, $2, $3) RETURNING id, created_at',
+      [existing.id, req.user.id, text],
+    );
+    res.status(201).json({
+      id: Number(rows[0].id),
+      authorName: req.user.fullName,
+      text,
+      createdAt: rows[0].created_at.toISOString(),
+    });
   });
 
   return router;
