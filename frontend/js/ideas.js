@@ -1,189 +1,71 @@
 function findAllIdeas() {
-    return loadMemory(KEY_STORAGE.IDEJE) || [];
+    return state.ideas;
 }
 
-function addIdea(naslov, opis, kategorija) {
-    const trenutniKorisnik = findCurUser();
-    if (!trenutniKorisnik) {
+/** Fetches the ideas that match the active filters from the server into the cache. */
+async function loadIdeas(kriterijumSort, statusFilter, kategorijaFilter, pretragaTekst) {
+    const params = new URLSearchParams();
+    params.set('sort', SORT_CODES[kriterijumSort] || 'newest');
+
+    const status = statusFilter && statusFilter !== 'sve' ? codeFor(STATUS_LABELS, statusFilter) : null;
+    const kategorija = kategorijaFilter && kategorijaFilter !== 'sve' ? codeFor(CATEGORY_LABELS, kategorijaFilter) : null;
+    if (status) params.set('status', status);
+    if (kategorija) params.set('category', kategorija);
+    if (pretragaTekst && pretragaTekst.trim()) params.set('q', pretragaTekst.trim());
+
+    const res = await apiRequest('GET', `/ideas?${params}`);
+    if (!res.ok) return failure(res);
+
+    state.ideas = res.data.map(fromApiIdea);
+    return { uspeh: true, ideje: state.ideas };
+}
+
+function ideaPayload(naslov, opis, kategorija) {
+    return {
+        title: naslov,
+        description: opis,
+        category: codeFor(CATEGORY_LABELS, kategorija)
+    };
+}
+
+async function addIdea(naslov, opis, kategorija) {
+    if (!findCurUser()) {
         return { uspeh: false, poruka: "Morate biti prijavljeni da biste poslali ideju!" };
     }
-
-    const ideje = findAllIdeas();
-    const novId = genNextId(KEY_STORAGE.IDEJE, KEY_STORAGE.NAREDNI_IDEJA_ID);
-
-    const novaIdeja = {
-        id: novId,
-        naslov: naslov.trim(),
-        opis: opis.trim(),
-        kategorija: kategorija,
-        autorId: trenutniKorisnik.id,
-        autorIme: trenutniKorisnik.imePrezime,
-        datumKreiranja: new Date().toISOString(),
-        status: "Čeka odobrenje",
-        glasoviZa: [],
-        glasoviProtiv: [],
-        komentari: []
-    };
-
-    ideje.unshift(novaIdeja);
-    saveMemory(KEY_STORAGE.IDEJE, ideje);
-    return { uspeh: true, ideja: novaIdeja };
+    const res = await apiRequest('POST', '/ideas', ideaPayload(naslov, opis, kategorija));
+    return res.ok ? { uspeh: true, ideja: fromApiIdea(res.data) } : failure(res);
 }
 
-function editIdea(id, naslov, opis, kategorija) {
-    const trenutniKorisnik = findCurUser();
-    if (!trenutniKorisnik) return { uspeh: false, poruka: "Niste prijavljeni!" };
-
-    const ideje = findAllIdeas();
-    const indeks = ideje.findIndex(i => i.id === id);
-    
-    if (indeks === -1) return { uspeh: false, poruka: "Ideja nije pronađena!" };
-
-    if (ideje[indeks].autorId !== trenutniKorisnik.id && trenutniKorisnik.uloga !== 'admin') {
-        return { uspeh: false, poruka: "Nemate pravo da menjate tuđu ideju!" };
-    }
-
-    ideje[indeks].naslov = naslov.trim();
-    ideje[indeks].opis = opis.trim();
-    ideje[indeks].kategorija = kategorija;
-
-    saveMemory(KEY_STORAGE.IDEJE, ideje);
-    return { uspeh: true, ideja: ideje[indeks] };
+async function editIdea(id, naslov, opis, kategorija) {
+    const res = await apiRequest('PUT', `/ideas/${id}`, ideaPayload(naslov, opis, kategorija));
+    return res.ok ? { uspeh: true, ideja: fromApiIdea(res.data) } : failure(res);
 }
 
-function deleteIdea(id) {
-    const trenutniKorisnik = findCurUser();
-    if (!trenutniKorisnik) return { uspeh: false, poruka: "Niste prijavljeni!" };
-
-    let ideje = findAllIdeas();
-    const ideja = ideje.find(i => i.id === id);
-    
-    if (!ideja) return { uspeh: false, poruka: "Ideja ne postoji!" };
-
-    if (ideja.autorId !== trenutniKorisnik.id && trenutniKorisnik.uloga !== 'admin') {
-        return { uspeh: false, poruka: "Nemate pravo da obrišete ovu ideju!" };
-    }
-
-    ideje = ideje.filter(i => i.id !== id);
-    saveMemory(KEY_STORAGE.IDEJE, ideje);
-    return { uspeh: true };
+async function deleteIdea(id) {
+    const res = await apiRequest('DELETE', `/ideas/${id}`);
+    return res.ok ? { uspeh: true } : failure(res);
 }
 
-function changeIdeaStatus(id, noviStatus) {
-    if (!isAdmin()) {
-        return { uspeh: false, poruka: "Samo administrator može menjati status projekta!" };
-    }
-
-    const ideje = findAllIdeas();
-    const ideja = ideje.find(i => i.id === id);
-    
-    if (!ideja) return { uspeh: false, poruka: "Ideja ne postoji!" };
-
-    ideja.status = noviStatus;
-    saveMemory(KEY_STORAGE.IDEJE, ideje);
-    return { uspeh: true, ideja };
+async function changeIdeaStatus(id, noviStatus) {
+    const res = await apiRequest('PUT', `/ideas/${id}/status`, { status: codeFor(STATUS_LABELS, noviStatus) });
+    return res.ok ? { uspeh: true, ideja: fromApiIdea(res.data) } : failure(res);
 }
 
-function vote(idejaId, tipGlasa) { 
-    const trenutniKorisnik = findCurUser();
-    if (!trenutniKorisnik) {
+async function vote(idejaId, tipGlasa) {
+    if (!findCurUser()) {
         return { uspeh: false, poruka: "Morate biti prijavljeni da biste glasali!" };
     }
-
-    const ideje = findAllIdeas();
-    const ideja = ideje.find(i => i.id === idejaId);
-
-    if (!ideja) return { uspeh: false, poruka: "Ideja ne postoji!" };
-
-    if (ideja.status === "U procesu izrade" || ideja.status === "Implementirano" || ideja.status === "Odbijeno") {
-        return { uspeh: false, poruka: "Glasanje je zaustavljeno za ovaj projekat!" };
-    }
-
-    const korIme = trenutniKorisnik.korisnickoIme;
-    const vecGlasaoZa = ideja.glasoviZa.includes(korIme);
-    const vecGlasaoProtiv = ideja.glasoviProtiv.includes(korIme);
-
-    if (tipGlasa === 'za') {
-        if (vecGlasaoZa) {
-            ideja.glasoviZa = ideja.glasoviZa.filter(username => username !== korIme);
-        } else {
-            ideja.glasoviZa.push(korIme);
-            ideja.glasoviProtiv = ideja.glasoviProtiv.filter(username => username !== korIme);
-        }
-    } else if (tipGlasa === 'protiv') {
-        if (vecGlasaoProtiv) {
-            ideja.glasoviProtiv = ideja.glasoviProtiv.filter(username => username !== korIme);
-        } else {
-            ideja.glasoviProtiv.push(korIme);
-            ideja.glasoviZa = ideja.glasoviZa.filter(username => username !== korIme);
-        }
-    }
-
-    saveMemory(KEY_STORAGE.IDEJE, ideje);
-    return { uspeh: true, ideja };
+    const res = await apiRequest('POST', `/ideas/${idejaId}/vote`, { type: tipGlasa === 'za' ? 'up' : 'down' });
+    return res.ok ? { uspeh: true, ideja: fromApiIdea(res.data) } : failure(res);
 }
 
-function comment(idejaId, tekst) {
-    const trenutniKorisnik = findCurUser();
-    if (!trenutniKorisnik) {
+async function comment(idejaId, tekst) {
+    if (!findCurUser()) {
         return { uspeh: false, poruka: "Morate biti prijavljeni da biste ostavili komentar!" };
     }
-
     if (!tekst.trim()) {
         return { uspeh: false, poruka: "Komentar ne može biti prazan!" };
     }
-
-    const ideje = findAllIdeas();
-    const ideja = ideje.find(i => i.id === idejaId);
-
-    if (!ideja) return { uspeh: false, poruka: "Ideja ne postoji!" };
-
-    const novKomentarId = ideja.komentari.length > 0 
-        ? Math.max(...ideja.komentari.map(k => k.id)) + 1 
-        : 0;
-
-    const noviKomentar = {
-        id: novKomentarId,
-        autorIme: trenutniKorisnik.imePrezime,
-        tekst: tekst.trim(),
-        datum: new Date().toISOString()
-    };
-
-    ideja.komentari.push(noviKomentar);
-    saveMemory(KEY_STORAGE.IDEJE, ideje);
-    return { uspeh: true, komentar: noviKomentar };
-}
-
-function filter(kriterijumSort, statusFilter, kategorijaFilter, pretragaTekst) {
-    let rez = findAllIdeas();
-
-    if (pretragaTekst && pretragaTekst.trim() !== '') {
-        const upit = pretragaTekst.toLowerCase().trim();
-        rez = rez.filter(i => 
-            i.naslov.toLowerCase().includes(upit) || 
-            i.opis.toLowerCase().includes(upit)
-        );
-    }
-
-    if (statusFilter && statusFilter !== 'sve') {
-        rez = rez.filter(i => i.status === statusFilter);
-    }
-
-    if (kategorijaFilter && kategorijaFilter !== 'sve') {
-        rez = rez.filter(i => i.kategorija === kategorijaFilter);
-    }
-
-    if (kriterijumSort === 'najnovije') {
-        rez.sort((a, b) => new Date(b.datumKreiranja) - new Date(a.datumKreiranja));
-    } else if (kriterijumSort === 'najstarije') {
-        rez.sort((a, b) => new Date(a.datumKreiranja) - new Date(a.datumKreiranja));
-    } else if (kriterijumSort === 'najpopularnije') {
-        rez.sort((a, b) => {
-            const netoA = a.glasoviZa.length - a.glasoviProtiv.length;
-            const netoB = b.glasoviZa.length - b.glasoviProtiv.length;
-            return netoB - netoA;
-        });
-    }
-
-    return rez;
+    const res = await apiRequest('POST', `/ideas/${idejaId}/comments`, { text: tekst });
+    return res.ok ? { uspeh: true, komentar: res.data } : failure(res);
 }

@@ -55,27 +55,18 @@ function renderUI() {
 }
 
 function renderStats() {
-    const ideje = findAllIdeas();
-    
-    const ukupno = ideje.length;
-    const uProcesu = ideje.filter(i => i.status === "U procesu izrade").length;
-    const implementirano = ideje.filter(i => i.status === "Implementirano").length;
-    
-    let ukupnoGlasova = 0;
-    ideje.forEach(i => {
-        ukupnoGlasova += (i.glasoviZa ? i.glasoviZa.length : 0) + (i.glasoviProtiv ? i.glasoviProtiv.length : 0);
-    });
+    const stats = state.stats || { total: 0, inProgress: 0, implemented: 0, votes: 0, byCategory: {} };
 
-    document.getElementById('stat-ukupno').textContent = ukupno;
-    document.getElementById('stat-u-procesu').textContent = uProcesu;
-    document.getElementById('stat-implementirano').textContent = implementirano;
-    document.getElementById('stat-glasovi').textContent = ukupnoGlasova;
+    document.getElementById('stat-ukupno').textContent = stats.total;
+    document.getElementById('stat-u-procesu').textContent = stats.inProgress;
+    document.getElementById('stat-implementirano').textContent = stats.implemented;
+    document.getElementById('stat-glasovi').textContent = stats.votes;
 
-    document.getElementById('kat-count-sve').textContent = ukupno;
-    document.getElementById('kat-count-tehnologija').textContent = ideje.filter(i => i.kategorija === "Tehnologija").length;
-    document.getElementById('kat-count-hr').textContent = ideje.filter(i => i.kategorija === "HR & Benefiti").length;
-    document.getElementById('kat-count-okruzenje').textContent = ideje.filter(i => i.kategorija === "Radno okruženje").length;
-    document.getElementById('kat-count-procesi').textContent = ideje.filter(i => i.kategorija === "Procesi & Organizacija").length;
+    document.getElementById('kat-count-sve').textContent = stats.total;
+    document.getElementById('kat-count-tehnologija').textContent = stats.byCategory.technology || 0;
+    document.getElementById('kat-count-hr').textContent = stats.byCategory.hr_benefits || 0;
+    document.getElementById('kat-count-okruzenje').textContent = stats.byCategory.workplace || 0;
+    document.getElementById('kat-count-procesi').textContent = stats.byCategory.processes || 0;
 }
 
 function findStatus(status) {
@@ -103,16 +94,15 @@ function renderIdeaCards(ideje) {
     }
 
     const trenutniKorisnik = findCurUser();
-    const korIme = trenutniKorisnik ? trenutniKorisnik.korisnickoIme : null;
 
     ideje.forEach(ideja => {
         const kartica = document.createElement('div');
         kartica.className = 'idea-card';
         kartica.dataset.id = ideja.id;
 
-        const netoGlasovi = ideja.glasoviZa.length - ideja.glasoviProtiv.length;
-        const vecGlasaoZa = korIme && ideja.glasoviZa.includes(korIme);
-        const vecGlasaoProtiv = korIme && ideja.glasoviProtiv.includes(korIme);
+        const netoGlasovi = ideja.glasoviZa - ideja.glasoviProtiv;
+        const vecGlasaoZa = ideja.mojGlas === 'up';
+        const vecGlasaoProtiv = ideja.mojGlas === 'down';
         
         const jeZaustavljeno = ideja.status === "U procesu izrade" || ideja.status === "Implementirano" || ideja.status === "Odbijeno";
         const glasanjeOnemoguceno = jeZaustavljeno || !trenutniKorisnik;
@@ -124,7 +114,7 @@ function renderIdeaCards(ideje) {
 
         kartica.innerHTML = `
             <div class="idea-header">
-                <span class="category-tag">${ideja.kategorija}</span>
+                <span class="category-tag">${pobegniHtml(ideja.kategorija)}</span>
                 <span class="status-badge ${findStatus(ideja.status)}">
                     ${ideja.status}
                 </span>
@@ -143,7 +133,7 @@ function renderIdeaCards(ideje) {
                     <button class="btn-vote ${vecGlasaoZa ? 'voted-za' : ''}" 
                             onclick="handleVotes(${ideja.id}, 'za')" 
                             ${glasanjeOnemoguceno ? `disabled title="${glasanjePoruka}"` : ''}>
-                        Like ${ideja.glasoviZa.length}
+                        Like ${ideja.glasoviZa}
                     </button>
                     
                     <span class="net-votes-badge ${netoGlasovi > 0 ? 'text-green' : (netoGlasovi < 0 ? 'text-red' : '')}">
@@ -153,13 +143,13 @@ function renderIdeaCards(ideje) {
                     <button class="btn-vote ${vecGlasaoProtiv ? 'voted-protiv' : ''}" 
                             onclick="handleVotes(${ideja.id}, 'protiv')" 
                             ${glasanjeOnemoguceno ? `disabled title="${glasanjePoruka}"` : ''}>
-                        Dislike ${ideja.glasoviProtiv.length}
+                        Dislike ${ideja.glasoviProtiv}
                     </button>
                 </div>
 
                 <div class="admin-card-actions">
                     ${jeAdminKorisnik ? `
-                        <button class="btn-icon-action" onclick="openModalStatus(${ideja.id}, '${pobegniHtml(ideja.naslov)}', '${ideja.status}')" title="Promeni status projekta">
+                        <button class="btn-icon-action" onclick="openModalStatus(${ideja.id})" title="Promeni status projekta">
                             Status
                         </button>
                     ` : ''}

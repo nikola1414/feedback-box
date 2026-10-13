@@ -1,50 +1,38 @@
 function findCurUser() {
-    return loadMemory(KEY_STORAGE.TRENUTNI_KORISNIK);
+    return state.user;
 }
 
 function isAdmin() {
-    const korisnik = findCurUser();
-    return korisnik && korisnik.uloga === 'admin';
+    return !!state.user && state.user.uloga === 'admin';
 }
 
-function logIn(korisnickoIme, lozinka) {
-    const korisnici = loadMemory(KEY_STORAGE.KORISNICI) || [];
-    const pronadjen = korisnici.find(k => 
-        k.korisnickoIme.toLowerCase() === korisnickoIme.trim().toLowerCase() && 
-        k.lozinka === lozinka
-    );
+async function logIn(korisnickoIme, lozinka) {
+    const res = await apiRequest('POST', '/auth/login', {
+        username: korisnickoIme,
+        password: lozinka
+    });
+    if (!res.ok) return failure(res);
 
-    if (pronadjen) {
-        saveMemory(KEY_STORAGE.TRENUTNI_KORISNIK, pronadjen);
-        return { uspeh: true, korisnik: pronadjen };
-    }
-    return { uspeh: false, poruka: "Netačno korisničko ime ili lozinka!" };
+    setToken(res.data.token);
+    state.user = fromApiUser(res.data.user);
+    return { uspeh: true, korisnik: state.user };
 }
 
-function logOut() {
-    localStorage.removeItem(KEY_STORAGE.TRENUTNI_KORISNIK);
+async function logOut() {
+    await apiRequest('POST', '/auth/logout');
+    setToken(null);
+    state.user = null;
 }
 
-function register(imePrezime, korisnickoIme, lozinka, uloga) {
-    const korisnici = loadMemory(KEY_STORAGE.KORISNICI) || [];
-    
-    const postoji = korisnici.find(k => k.korisnickoIme.toLowerCase() === korisnickoIme.trim().toLowerCase());
-    if (postoji) {
-        return { uspeh: false, poruka: "Korisničko ime je već zauzeto!" };
-    }
+async function register(imePrezime, korisnickoIme, lozinka) {
+    const res = await apiRequest('POST', '/auth/register', {
+        fullName: imePrezime,
+        username: korisnickoIme,
+        password: lozinka
+    });
+    if (!res.ok) return failure(res);
 
-    const novId = genNextId(KEY_STORAGE.KORISNICI, KEY_STORAGE.NAREDNI_KORISNIK_ID);
-    const noviKorisnik = {
-        id: novId,
-        korisnickoIme: korisnickoIme.trim(),
-        lozinka: lozinka,
-        imePrezime: imePrezime.trim(),
-        uloga: uloga || 'user'
-    };
-
-    korisnici.push(noviKorisnik);
-    saveMemory(KEY_STORAGE.KORISNICI, korisnici);
-    saveMemory(KEY_STORAGE.TRENUTNI_KORISNIK, noviKorisnik);
-
-    return { uspeh: true, korisnik: noviKorisnik };
+    setToken(res.data.token);
+    state.user = fromApiUser(res.data.user);
+    return { uspeh: true, korisnik: state.user };
 }

@@ -3,26 +3,42 @@ let aktivniStatusFilter = 'sve';
 let aktivnaKategorijaFilter = 'sve';
 let pretragaTekst = '';
 
-document.addEventListener('DOMContentLoaded', () => {
-    initApp();
+document.addEventListener('DOMContentLoaded', async () => {
     linkEL();
+    await loadSession();
+    await initApp();
 });
 
-function initApp() {
+async function initApp() {
     renderUI();
+    await Promise.all([loadStats(), refreshCards()]);
     renderStats();
-    refreshCards();
 }
 
-function refreshCards() {
-    const filtriraneIdeje = filter(
-        aktivniKriterijumSort, 
-        aktivniStatusFilter, 
-        aktivnaKategorijaFilter, 
+// Only the latest request may update the screen, so slow responses cannot overwrite newer ones.
+let zahtevBroj = 0;
+
+async function refreshCards() {
+    const moj = ++zahtevBroj;
+    const rez = await loadIdeas(
+        aktivniKriterijumSort,
+        aktivniStatusFilter,
+        aktivnaKategorijaFilter,
         pretragaTekst
     );
-    renderIdeaCards(filtriraneIdeje);
-    refreshFilterInfo(filtriraneIdeje.length);
+    if (moj !== zahtevBroj) return;
+
+    if (!rez.uspeh) {
+        showNotif(rez.poruka, 'error');
+        return;
+    }
+    renderIdeaCards(rez.ideje);
+    refreshFilterInfo(rez.ideje.length);
+}
+
+async function refreshStats() {
+    await loadStats();
+    renderStats();
 }
 
 function refreshFilterInfo(brojPrikazanih) {
@@ -67,43 +83,42 @@ function linkEL() {
         formaPrijava.classList.add('hidden');
     });
 
-    formaPrijava.addEventListener('submit', (e) => {
+    formaPrijava.addEventListener('submit', async (e) => {
         e.preventDefault();
         const kIme = document.getElementById('prijava-korisnicko').value;
         const lozinka = document.getElementById('prijava-lozinka').value;
 
-        const rez = logIn(kIme, lozinka);
+        const rez = await logIn(kIme, lozinka);
         if (rez.uspeh) {
             closeModal('modal-prijava');
             showNotif(`Dobrodošli nazad, ${rez.korisnik.imePrezime}!`, 'success');
-            initApp();
+            await initApp();
         } else {
             showNotif(rez.poruka, 'error');
         }
     });
 
-    formaReg.addEventListener('submit', (e) => {
+    formaReg.addEventListener('submit', async (e) => {
         e.preventDefault();
         const ime = document.getElementById('reg-ime').value;
         const kIme = document.getElementById('reg-korisnicko').value;
         const lozinka = document.getElementById('reg-lozinka').value;
-        const uloga = document.getElementById('reg-uloga').value;
 
-        const rez = register(ime, kIme, lozinka, uloga);
+        const rez = await register(ime, kIme, lozinka);
         if (rez.uspeh) {
             closeModal('modal-prijava');
             showNotif(`Uspešna registracija! Prijavljeni ste kao ${rez.korisnik.imePrezime}.`, 'success');
-            initApp();
+            await initApp();
         } else {
             showNotif(rez.poruka, 'error');
         }
     });
 
-    document.getElementById('user-actions-container').addEventListener('click', (e) => {
+    document.getElementById('user-actions-container').addEventListener('click', async (e) => {
         if (e.target && e.target.id === 'btn-odjava') {
-            logOut();
+            await logOut();
             showNotif("Uspešno ste se odjavili.", 'info');
-            initApp();
+            await initApp();
         } else if (e.target && e.target.id === 'btn-otvori-prijavu') {
             openModal('modal-prijava');
         }
@@ -126,7 +141,7 @@ function linkEL() {
     document.getElementById('btn-zatvori-ideju').addEventListener('click', () => closeModal('modal-ideja'));
     document.getElementById('btn-otkani-ideju').addEventListener('click', () => closeModal('modal-ideja'));
 
-    document.getElementById('forma-ideja').addEventListener('submit', (e) => {
+    document.getElementById('forma-ideja').addEventListener('submit', async (e) => {
         e.preventDefault();
         const idejaId = document.getElementById('ideja-id').value;
         const naslov = document.getElementById('ideja-naslov-input').value;
@@ -134,20 +149,20 @@ function linkEL() {
         const opis = document.getElementById('ideja-opis').value;
 
         if (idejaId === "") {
-            const rez = addIdea(naslov, opis, kategorija);
+            const rez = await addIdea(naslov, opis, kategorija);
             if (rez.uspeh) {
                 closeModal('modal-ideja');
                 showNotif("Vaša ideja je uspešno poslata!", 'success');
-                initApp();
+                await initApp();
             } else {
                 showNotif(rez.poruka, 'error');
             }
         } else {
-            const rez = editIdea(parseInt(idejaId, 10), naslov, opis, kategorija);
+            const rez = await editIdea(parseInt(idejaId, 10), naslov, opis, kategorija);
             if (rez.uspeh) {
                 closeModal('modal-ideja');
                 showNotif("Ideja je uspešno izmenjena!", 'success');
-                initApp();
+                await initApp();
             } else {
                 showNotif(rez.poruka, 'error');
             }
@@ -157,24 +172,26 @@ function linkEL() {
     document.getElementById('btn-zatvori-status').addEventListener('click', () => closeModal('modal-status'));
     document.getElementById('btn-otkani-status').addEventListener('click', () => closeModal('modal-status'));
 
-    document.getElementById('forma-status').addEventListener('submit', (e) => {
+    document.getElementById('forma-status').addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = parseInt(document.getElementById('status-ideja-id').value, 10);
         const noviStatus = document.getElementById('status-select').value;
 
-        const rez = changeIdeaStatus(id, noviStatus);
+        const rez = await changeIdeaStatus(id, noviStatus);
         if (rez.uspeh) {
             closeModal('modal-status');
             showNotif(`Status projekta promijenjen u "${noviStatus}".`, 'success');
-            initApp();
+            await initApp();
         } else {
             showNotif(rez.poruka, 'error');
         }
     });
 
+    let pretragaTimer = null;
     document.getElementById('input-pretraga').addEventListener('input', (e) => {
         pretragaTekst = e.target.value;
-        refreshCards();
+        clearTimeout(pretragaTimer);
+        pretragaTimer = setTimeout(refreshCards, 250);
     });
 
     document.getElementById('select-sort').addEventListener('change', (e) => {
@@ -200,34 +217,32 @@ function linkEL() {
     });
 }
 
-window.handleVotes = function(idejaId, tipGlasa) {
-    const rez = vote(idejaId, tipGlasa);
+window.handleVotes = async function(idejaId, tipGlasa) {
+    const rez = await vote(idejaId, tipGlasa);
     if (rez.uspeh) {
-        renderStats();
-        refreshCards();
+        await Promise.all([refreshCards(), refreshStats()]);
     } else {
         showNotif(rez.poruka, 'warning');
+        await refreshCards();
     }
 };
 
-window.handleComments = function(event, idejaId) {
+window.handleComments = async function(event, idejaId) {
     event.preventDefault();
     const input = event.target.querySelector('.comment-input');
     const tekst = input.value;
 
-    const rez = comment(idejaId, tekst);
+    const rez = await comment(idejaId, tekst);
     if (rez.uspeh) {
         showNotif("Komentar je dodat!", 'success');
-        renderStats();
-        refreshCards();
+        await refreshCards();
     } else {
         showNotif(rez.poruka, 'error');
     }
 };
 
 window.openModalChanges = function(id) {
-    const ideje = findAllIdeas();
-    const ideja = ideje.find(i => i.id === id);
+    const ideja = findAllIdeas().find(i => i.id === id);
     if (!ideja) return;
 
     document.getElementById('modal-ideja-naslov').textContent = "Izmeni ideju";
@@ -239,19 +254,22 @@ window.openModalChanges = function(id) {
     openModal('modal-ideja');
 };
 
-window.openModalStatus = function(id, naslov, trenutniStatus) {
-    document.getElementById('status-ideja-id').value = id;
-    document.getElementById('status-modal-ideja-naslov').textContent = `Ideja: "${naslov}"`;
-    document.getElementById('status-select').value = trenutniStatus;
+window.openModalStatus = function(id) {
+    const ideja = findAllIdeas().find(i => i.id === id);
+    if (!ideja) return;
+
+    document.getElementById('status-ideja-id').value = ideja.id;
+    document.getElementById('status-modal-ideja-naslov').textContent = `Ideja: "${ideja.naslov}"`;
+    document.getElementById('status-select').value = ideja.status;
     openModal('modal-status');
 };
 
-window.handelDeletion = function(id) {
+window.handelDeletion = async function(id) {
     if (confirm("Da li ste sigurni da želite da obrišete ovu ideju? Ova akcija je nepovratna.")) {
-        const rez = deleteIdea(id);
+        const rez = await deleteIdea(id);
         if (rez.uspeh) {
             showNotif("Ideja je uspešno obrisana.", 'info');
-            initApp();
+            await initApp();
         } else {
             showNotif(rez.poruka, 'error');
         }
