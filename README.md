@@ -4,6 +4,8 @@
 
 An internal innovation portal where employees submit ideas, comment on them and vote. Administrators decide what happens to each proposal. The interface is in Serbian.
 
+![Feedback Box dashboard signed in as an administrator](docs/screenshot.png)
+
 The project is a full-stack application: a vanilla JavaScript client, a REST API built with Node.js and Express, and a PostgreSQL database with versioned SQL migrations.
 
 ## Features
@@ -13,6 +15,7 @@ The project is a full-stack application: a vanilla JavaScript client, a REST API
 - Create, edit and delete ideas; comments on every idea
 - One vote per user and idea: voting again withdraws the vote, voting the other way switches it
 - Voting closes automatically once an idea is approved, implemented or rejected
+- Sign-in is rate-limited: five failed attempts per user and client lock further attempts for 15 minutes
 - Text search, category and status filters, and sorting by newest, oldest or most popular, all done in SQL
 - Dashboard statistics served by the API
 
@@ -97,13 +100,14 @@ Migrations live in `backend/migrations` and are applied in filename order at sta
 - Self-registration always creates an employee. Administrators are provisioned directly in the database (`UPDATE users SET role = 'admin' WHERE username = '...'`).
 - All SQL uses parameterised queries, and the client escapes user text before rendering it.
 - Unknown usernames and wrong passwords return the same response, and the same amount of hashing work is done for both.
+- Repeated failed sign-ins are rate-limited (in memory, per process).
 
 ## Tests
 
 ```bash
 cd backend
 npm run lint
-npm test                        # 52 API tests against a real PostgreSQL database
+npm test                        # 57 API tests against a real PostgreSQL database
 ```
 
 The API tests use the database in `TEST_DATABASE_URL` (default `postgres://feedbackbox:feedbackbox@localhost:5432/feedbackbox_test`). Create it once with `createdb feedbackbox_test`.
@@ -147,6 +151,5 @@ GitHub Actions runs lint, the API tests and the browser tests against a PostgreS
 
 ## Possible next steps
 
-- Rate limiting for sign-in attempts
 - Pagination for the idea list
 - Email notifications when an idea's status changes
